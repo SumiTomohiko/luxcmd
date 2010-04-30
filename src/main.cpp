@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string.h>
 #include <lux/index.h>
+#include <lux/search.h>
 #include <lux/types.h>
 
 static void
@@ -9,6 +10,7 @@ usage()
     std::cout << "usage:" << std::endl;
     std::cout << "  luxcmd init db" << std::endl;
     std::cout << "  luxcmd put db id [attr=value]...." << std::endl;
+    std::cout << "  luxcmd search db phrase" << std::endl;
 }
 
 static bool
@@ -27,13 +29,35 @@ init(Lux::Engine engine, const char* db, int argc, char* argv[])
     return open_db(engine, db, Lux::DB_CREAT) ? 0 : 1;
 }
 
-static int
-put(Lux::Engine engine, const char* db, int argc, char* argv[])
+static void
+print_line()
 {
-    if (!open_db(engine, db)) {
-        return 1;
+    std::cout << "--------------------------------" << std::endl;
+}
+
+static int
+search(Lux::Engine engine, int argc, char* argv[])
+{
+    Lux::SortCondition scond(Lux::SORT_SCORE, Lux::DESC);
+    Lux::Paging paging(100);
+    Lux::Condition cond(scond, paging);
+
+    Lux::Searcher searcher(engine);
+    Lux::ResultSet rs = searcher.search(argv[0], cond);
+    std::cout << "total hits: " << rs.get_total_num() << std::endl;
+    rs.init_iter();
+    while (rs.has_next()) {
+        Lux::Result r = rs.get_next();
+        print_line();
+        std::cout << "[id] " << r.get_id() << std::endl;
     }
 
+    return 0;
+}
+
+static int
+put(Lux::Engine engine, int argc, char* argv[])
+{
     Lux::Indexer indexer(engine);
     Lux::Document doc(argv[0]);
     int i;
@@ -74,10 +98,17 @@ main(int argc, char* argv[])
 
     const char* cmd = argv[1];
     if (strcmp(cmd, "init") == 0) {
-        return init(engine, db, argc - 4, argv + 4);
+        return init(engine, db, argc - 3, argv + 3);
+    }
+
+    if (!open_db(engine, db)) {
+        return 1;
     }
     if (strcmp(cmd, "put") == 0) {
-        return put(engine, db, argc - 4, argv + 4);
+        return put(engine, argc - 3, argv + 3);
+    }
+    if (strcmp(cmd, "search") == 0) {
+        return search(engine, argc - 3, argv + 3);
     }
 
     return 0;
